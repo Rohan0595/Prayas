@@ -6,6 +6,8 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.api import chat, upload, sessions, auth
 from app.core.config import settings
 from app.rag.vector_store import vector_store
@@ -47,3 +49,17 @@ app.include_router(auth.router, prefix="/api", tags=["auth"])
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "version": "1.0.0"}
+
+
+# Serve frontend static files if they exist (Production / Docker mode)
+frontend_dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "frontend", "dist")
+
+if os.path.isdir(frontend_dist):
+    app.mount("/assets", StaticFiles(directory=os.path.join(frontend_dist, "assets")), name="assets")
+
+    @app.get("/{catchall:path}")
+    async def serve_spa(catchall: str):
+        file_path = os.path.join(frontend_dist, catchall)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
